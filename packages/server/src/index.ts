@@ -135,6 +135,11 @@ export class Renderer {
 			this.customCSS = optionsOrConfig.customCSS;
 			this.baseFontSize = optionsOrConfig.baseFontSize ?? 16;
 			this.tailwindMode = optionsOrConfig.tailwindMode ?? 'runtime';
+			if (this.tailwindMode === 'precompiled' && hasCustomTailwindConfig(this.tailwindConfig)) {
+				console.warn(
+					'[better-svelte-email] tailwindMode="precompiled" was requested with a custom tailwindConfig. Falling back to runtime mode to apply the custom config.'
+				);
+			}
 		} else {
 			this.tailwindConfig = optionsOrConfig || {};
 			this.customCSS = undefined;
