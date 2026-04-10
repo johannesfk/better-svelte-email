@@ -13,10 +13,12 @@ import { addInlinedStylesToElement } from './utils/tailwindcss/add-inlined-style
 import { isValidNode } from './utils/html/is-valid-node';
 import { removeAttributesFunctions } from './utils/html/remove-attributes-functions';
 import { convert } from 'html-to-text';
+import { setupPrecompiledTailwind } from './utils/tailwindcss/setup-precompiled-tailwind';
 
 export type TailwindConfig = Omit<Config, 'content'>;
 export type { DefaultTreeAdapterTypes as AST };
 export { pixelBasedPreset } from './utils/tailwindcss/pixel-based-preset';
+export type TailwindMode = 'precompiled' | 'runtime';
 
 /**
  * Options for creating a Renderer instance
@@ -49,6 +51,16 @@ export type RendererOptions = {
 	 * @default 16
 	 */
 	baseFontSize?: number;
+	/**
+	 * Tailwind processing mode:
+	 * - `precompiled`: Uses the bundled, build-time safelisted CSS artifact (edge/runtime-safe)
+	 * - `runtime`: Compiles utilities at runtime using tailwindcss
+	 *
+	 * Note: When a `tailwindConfig` is provided, runtime mode is used automatically.
+	 *
+	 * @default 'runtime'
+	 */
+	tailwindMode?: TailwindMode;
 };
 
 /**
@@ -93,18 +105,26 @@ function isRendererOptions(obj: unknown): obj is RendererOptions {
 	return (
 		typeof obj === 'object' &&
 		obj !== null &&
-		('tailwindConfig' in obj || 'customCSS' in obj || 'baseFontSize' in obj)
+		('tailwindConfig' in obj ||
+			'customCSS' in obj ||
+			'baseFontSize' in obj ||
+			'tailwindMode' in obj)
 	);
+}
+
+function hasCustomTailwindConfig(config: TailwindConfig): boolean {
+	return Object.keys(config).length > 0;
 }
 
 export class Renderer {
 	private tailwindConfig: TailwindConfig;
 	private customCSS?: string;
 	private baseFontSize: number;
+	private tailwindMode: TailwindMode;
 
 	// Backward-compatible overloads:
 	// - new Renderer(tailwindConfig)
-	// - new Renderer({ tailwindConfig, customCSS, baseFontSize })
+	// - new Renderer({ tailwindConfig, customCSS, baseFontSize, tailwindMode })
 	constructor(tailwindConfig?: TailwindConfig);
 	constructor(options?: RendererOptions);
 	constructor(optionsOrConfig: TailwindConfig | RendererOptions = {}) {
@@ -114,10 +134,12 @@ export class Renderer {
 			this.tailwindConfig = optionsOrConfig.tailwindConfig || {};
 			this.customCSS = optionsOrConfig.customCSS;
 			this.baseFontSize = optionsOrConfig.baseFontSize ?? 16;
+			this.tailwindMode = optionsOrConfig.tailwindMode ?? 'runtime';
 		} else {
 			this.tailwindConfig = optionsOrConfig || {};
 			this.customCSS = undefined;
 			this.baseFontSize = 16;
+			this.tailwindMode = 'runtime';
 		}
 	}
 
@@ -148,7 +170,8 @@ export class Renderer {
 		ast = removeAttributesFunctions(ast);
 
 		let classesUsed: string[] = [];
-		const tailwindSetup = await setupTailwind(this.tailwindConfig, this.customCSS);
+		const shouldUseRuntimeTailwind =
+			this.tailwindMode === 'runtime' || hasCustomTailwindConfig(this.tailwindConfig);
 
 		walk(ast, (node) => {
 			if (isValidNode(node)) {
@@ -157,14 +180,19 @@ export class Renderer {
 				if (classAttr && classAttr.value) {
 					const classes = classAttr.value.split(/\s+/).filter(Boolean);
 					classesUsed = [...classesUsed, ...classes];
-					tailwindSetup.addUtilities(classes);
 				}
 			}
 
 			return node;
 		});
 
-		const styleSheet = tailwindSetup.getStyleSheet();
+		const styleSheet = shouldUseRuntimeTailwind
+			? await (async () => {
+					const runtimeTailwind = await setupTailwind(this.tailwindConfig, this.customCSS);
+					runtimeTailwind.addUtilities(classesUsed);
+					return runtimeTailwind.getStyleSheet();
+				})()
+			: setupPrecompiledTailwind(this.customCSS);
 		sanitizeStyleSheet(styleSheet, { baseFontSize: this.baseFontSize });
 
 		// Extract global rules (*, element selectors, :root) for application to all elements

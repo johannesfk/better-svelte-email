@@ -16,7 +16,7 @@ npm i @better-svelte-email/server
 
 The main entry exposes:
 
-- **`Renderer`** — configure Tailwind (`tailwindConfig`), optional injected **`customCSS`** (e.g. theme variables), then **`render(component, options)`** to produce HTML
+- **`Renderer`** — configure Tailwind (`tailwindConfig`), optional injected **`customCSS`** (e.g. theme variables), choose **`tailwindMode`** (`precompiled` or `runtime`), then **`render(component, options)`** to produce HTML
 - **`toPlainText`** — derive a plain-text version from rendered HTML
 - **Types** — `TailwindConfig`, `RendererOptions`, `RenderOptions`, `AST`, etc.
 - **`pixelBasedPreset`** — Tailwind-related helper for pixel-oriented email styling
@@ -41,6 +41,15 @@ bun run build
 bun run test
 bun run lint
 ```
+
+## Tailwind modes
+
+`Renderer` supports two Tailwind modes:
+
+- **`precompiled`**: Uses a bundled build-time safelisted CSS artifact. This mode avoids runtime Tailwind compilation and is safer for edge/runtime-constrained environments.
+- **`runtime` (default)**: Compiles Tailwind utilities at render time via `tailwindcss`. Use this when you need full dynamic utility generation in Node-only environments.
+
+If you pass a custom `tailwindConfig`, runtime mode is used automatically.
 
 ## License
 

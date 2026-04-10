@@ -18,6 +18,14 @@ describe('Renderer', () => {
 		expect(html).not.toContain('class="text-center bg-red-500"');
 	});
 
+	it('renders using precompiled Tailwind mode without runtime compilation', async () => {
+		const renderer = new Renderer({ tailwindMode: 'precompiled' });
+		const html = await renderer.render(BasicComponent);
+
+		expect(html).toMatch(/text-align:\s*center/);
+		expect(html).toContain('background-color');
+	});
+
 	it('handles components with responsive classes', async () => {
 		const renderer = new Renderer();
 		const html = await renderer.render(ResponsiveComponent);
